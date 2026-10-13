@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>内容创作 Workflow MVP · 3 Agent 协作</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171f2e; --panel2:#1e2837; --line:#2a3648;
+    --text:#e6edf6; --muted:#8a9ab0; --accent:#4f8cff; --accent2:#7c5cff;
+    --ok:#37d39b; --warn:#ffb454; --err:#ff5f6d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+       background:radial-gradient(1200px 600px at 20% -10%,#1b2740,transparent),var(--bg);
+       color:var(--text);min-height:100vh}
+  header{padding:22px 28px 6px}
+  header h1{margin:0;font-size:20px;letter-spacing:.5px}
+  header p{margin:6px 0 0;color:var(--muted);font-size:13px}
+  .wrap{display:grid;grid-template-columns:340px 1fr;gap:18px;padding:18px 28px 40px;align-items:start}
+  @media(max-width:960px){.wrap{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);
+        border-radius:14px;padding:16px 16px 18px}
+  .card h2{margin:0 0 12px;font-size:14px;color:var(--muted);font-weight:600;letter-spacing:.4px}
+  label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
+  textarea,input,select{width:100%;background:#121a27;border:1px solid var(--line);color:var(--text);
+        border-radius:9px;padding:10px 11px;font-size:13px;font-family:inherit;outline:none}
+  textarea{resize:vertical;min-height:70px}
+  input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+  .row{display:flex;gap:10px}
+  .row>div{flex:1}
+  button{cursor:pointer;border:none;border-radius:10px;font-size:13px;font-family:inherit;font-weight:600;
+         padding:11px 14px;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2));
+         transition:.15s;width:100%;margin-top:16px}
+  button:hover{filter:brightness(1.1)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.ghost{background:#243149;margin-top:8px}
+  .hint{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
+  /* pipeline */
+  .pipeline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .node{flex:1;min-width:120px;background:#121a27;border:1px solid var(--line);border-radius:12px;
+        padding:12px;text-align:center;position:relative;transition:.2s}
+  .node .dot{width:9px;height:9px;border-radius:50%;background:#3b475c;display:inline-block;margin-right:6px;
+        vertical-align:middle}
+  .node .nm{font-size:13px;font-weight:600}
+  .node .rl{font-size:11px;color:var(--muted);margin-top:4px}
+  .node.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,140,255,.15)}
+  .node.active .dot{background:var(--accent);animation:pulse 1s infinite}
+  .node.done{border-color:rgba(55,211,155,.5)}
+  .node.done .dot{background:var(--ok)}
+  .node.error{border-color:var(--err)}
+  .node.error .dot{background:var(--err)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .arrow{color:var(--muted);font-size:18px}
+  .loopnote{font-size:11px;color:var(--muted);margin:8px 0 0;text-align:center}
+  /* log */
+  .console{height:238px;overflow:auto;background:#0b111b;border:1px solid var(--line);border-radius:10px;
+           padding:10px 12px;font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.65;
+           white-space:pre-wrap;word-break:break-word}
+  .console .ok{color:var(--ok)} .console .err{color:var(--err)} .console .dim{color:var(--muted)}
+  /* results */
+  .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .tab{padding:7px 13px;border-radius:9px;font-size:12.5px;background:#121a27;border:1px solid var(--line);
+       color:var(--muted);cursor:pointer}
+  .tab.on{background:#1c2942;color:var(--text);border-color:var(--accent)}
+  .pane{display:none;background:#0b111b;border:1px solid var(--line);border-radius:10px;padding:16px 18px;
+        max-height:430px;overflow:auto;font-size:13.5px;line-height:1.75}
+  .pane.on{display:block}
+  .pane h1{font-size:18px} .pane h2{font-size:15px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  .pane h3{font-size:14px;color:#c7d4e6} .pane ul{padding-left:20px}
+  .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600}
+  .b-ok{background:rgba(55,211,155,.15);color:var(--ok)}
+  .b-warn{background:rgba(255,180,84,.15);color:var(--warn)}
+  .b-err{background:rgba(255,95,109,.15);color:var(--err)}
+  .stats{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+  .stats b{color:var(--text);font-size:15px;display:block}
+  .empty{color:var(--muted);font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>内容创作 Workflow MVP</h1>
+  <p>3 个 Agent 协作：规划 Agent → 写作 Agent → 审校 Agent（含审校循环）　·　大模型：通义千问（OpenAI 兼容）</p>
+</header>
+
+<div class="wrap">
+  <!-- 左侧控制面板 -->
+  <div>
+    <div class="card">
+      <h2>① 运行配置</h2>
+      <label>文章主题</label>
+      <textarea id="topic">人工智能如何改变软件开发</textarea>
+
+      <div id="llmExtra">
+        <label>API Key（留空则使用 config.yaml / 环境变量）</label>
+        <input id="apiKey" type="password" placeholder="sk-..." />
+        <div class="row">
+          <div>
+            <label>模型</label>
+            <input id="model" placeholder="qwen-plus" />
+          </div>
+          <div>
+            <label>最大审校轮次</label>
+            <input id="rounds" type="number" min="0" max="5" value="2" />
+          </div>
+        </div>
+      </div>
+
+      <button id="runBtn">▶ 开始运行 Workflow</button>
+      <button id="stopBtn" class="ghost" style="display:none">■ 停止</button>
+      <div class="hint" id="hint"></div>
+    </div>
+  </div>
+
+  <!-- 右侧主区域 -->
+  <div>
+    <div class="card" style="margin-bottom:18px">
+      <h2>② Workflow 流程</h2>
+      <div class="pipeline" id="pipeline">
+        <div class="node" id="n-planner"><span class="dot"></span><span class="nm">规划 Agent</span>
+          <div class="rl">主题 → 大纲</div></div>
+        <span class="arrow">→</span>
+        <div class="node" id="n-writer"><span class="dot"></span><span class="nm">写作 Agent</span>
+          <div class="rl">大纲 → 正文</div></div>
+        <span class="arrow">→</span>
+        <div class="node" id="n-reviewer"><span class="dot"></span><span class="nm">审校 Agent</span>
+          <div class="rl">正文 → 审校意见</div></div>
+      </div>
+      <p class="loopnote">审校未通过时 → 回退给写作 Agent 修订，循环执行；共享状态 WorkflowState 负责 Agent 间消息传递</p>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <h2>③ 执行日志（实时）</h2>
+      <div class="console" id="console"><span class="dim">等待运行…</span></div>
+    </div>
+
+    <div class="card">
+      <h2>④ 执行成果</h2>
+      <div class="tabs">
+        <div class="tab on" data-pane="outline">大纲</div>
+        <div class="tab" data-pane="article">文章</div>
+        <div class="tab" data-pane="review">审校报告</div>
+        <div class="tab" data-pane="summary">状态摘要</div>
+      </div>
+      <div class="pane on" id="p-outline"><span class="empty">运行后显示规划 Agent 生成的大纲。</span></div>
+      <div class="pane" id="p-article"><span class="empty">运行后显示写作 Agent 撰写的文章。</span></div>
+      <div class="pane" id="p-review"><span class="empty">运行后显示审校 Agent 的报告。</span></div>
+      <div class="pane" id="p-summary"><span class="empty">运行后显示状态摘要。</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const ROLE_NODE = { planner: "n-planner", writer: "n-writer", reviewer: "n-reviewer" };
+let controller = null;
+
+// ---------- Markdown 渲染（轻量，无需外部依赖） ----------
+function esc(s){ return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function md(src){
+  if(!src) return "";
+  const lines = esc(src).split("\n");
+  let out = [], inList = false;
+  const inline = (t) => t
+      .replace(/`([^`]+)`/g,"<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  for (let raw of lines){
+    const l = raw.trimEnd();
+    const m = l.match(/^(#{1,4})\s+(.*)$/);
+    if (m){
+      if(inList){ out.push("</ul>"); inList=false; }
+      out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`);
+    } else if (/^[-*+]\s+/.test(l)){
+      if(!inList){ out.push("<ul>"); inList=true; }
+      out.push(`<li>${inline(l.replace(/^[-*+]\s+/,""))}</li>`);
+    } else if (l === ""){
+      if(inList){ out.push("</ul>"); inList=false; }
+    } else {
+      if(inList){ out.push("</ul>"); inList=false; }
+      out.push(`<p>${inline(l)}</p>`);
+    }
+  }
+  if(inList) out.push("</ul>");
+  return out.join("");
+}
+
+// ---------- 初始化 ----------
+async function init(){
+  try{
+    const c = await (await fetch("/api/config")).json();
+    $("topic").value = c.default_topic || $("topic").value;
+    $("rounds").value = c.default_max_rounds ?? 2;
+    $("model").placeholder = c.model || "qwen-plus";
+    if (!c.has_key){
+      $("hint").textContent = "提示：未检测到 API Key，请在下方填写（或写入 config.yaml / 环境变量 DASHSCOPE_API_KEY）。";
+    }
+  }catch(e){ /* 忽略，使用默认值 */ }
+}
+
+// ---------- 节点状态 ----------
+function resetNodes(){
+  document.querySelectorAll(".node").forEach(n=>n.classList.remove("active","done","error"));
+}
+function setNode(role, cls){
+  const el = $(ROLE_NODE[role]); if(!el) return;
+  el.classList.remove("active","done","error");
+  if(cls) el.classList.add(cls);
+}
+
+// ---------- 日志 ----------
+function logLine(text, cls){
+  const box = $("console");
+  if(box.querySelector(".dim") && box.children.length===1) box.innerHTML="";
+  const span = document.createElement("div");
+  if(cls) span.className = cls;
+  span.textContent = text;
+  box.appendChild(span);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ---------- 处理事件 ----------
+function handle(ev){
+  switch(ev.type){
+    case "workflow_start":
+      resetNodes(); logLine(`▶ 启动 Workflow：${ev.name}`,"ok"); break;
+    case "agent_start":
+      setNode(ev.role,"active"); logLine(`━━━ [${ev.agent}] 开始执行…`); break;
+    case "agent_end":
+      setNode(ev.role,"done"); logLine(`  ${ev.agent} 完成（${ev.duration}s）`,"ok"); break;
+    case "agent_error":
+      setNode(ev.role,"error"); logLine(`✗ ${ev.agent} 失败：${ev.message}`,"err"); break;
+    case "log":
+      logLine(ev.message, ev.message.includes("✗")?"err":(ev.message.includes("✓")||ev.message.includes("✔")?"ok":"")); break;
+    case "error":
+      logLine("✗ 运行错误："+ev.message,"err"); break;
+    case "result":
+      renderResult(ev); break;
+  }
+}
+
+function verdictBadge(v){
+  const up = (v||"").toUpperCase();
+  if(up==="APPROVE") return '<span class="badge b-ok">APPROVE · 通过</span>';
+  if(up.includes("MINOR")) return '<span class="badge b-warn">APPROVE_WITH_MINOR_REVISIONS · 小改</span>';
+  if(up.includes("MAJOR")||up.includes("REVISION")) return '<span class="badge b-err">REQUEST_MAJOR_REVISIONS · 需修订</span>';
+  return v? `<span class="badge b-warn">${esc(v)}</span>` : "";
+}
+
+function renderResult(ev){
+  $("p-outline").innerHTML = md(ev.outline) || '<span class="empty">（无）</span>';
+  $("p-article").innerHTML = md(ev.article) || '<span class="empty">（无）</span>';
+  $("p-review").innerHTML = (verdictBadge(ev.verdict) + "<br><br>" + md(ev.review)) || '<span class="empty">（无）</span>';
+  const s = ev.summary || {};
+  const msgs = (s.messages||[]).map(m=>`<li>${esc(m.sender)} → ${esc(m.receiver)} [${esc(m.type)}]</li>`).join("");
+  $("p-summary").innerHTML =
+    `<div class="stats">
+       <div><b>${s.current_step||0}</b>执行步数</div>
+       <div><b>${s.round||0}</b>审校轮次</div>
+       <div><b>${s.message_count||0}</b>消息总数</div>
+     </div>
+     <h3>Agent 间消息</h3><ul>${msgs||"<li>（无）</li>"}</ul>
+     <h3>共享状态键</h3><ul>${(s.data_keys||[]).map(k=>`<li>${esc(k)}</li>`).join("")}</ul>`;
+  logLine("✔ Workflow 执行完成，成果已生成。","ok");
+}
+
+// ---------- 运行 ----------
+async function run(){
+  if (!$("apiKey").value.trim() && !confirm("未填写 API Key。若未在 config.yaml / 环境变量中配置，将调用失败。是否继续？")) return;
+
+  const body = {
+    topic: $("topic").value.trim() || "人工智能如何改变软件开发",
+    api_key: $("apiKey").value.trim(),
+    model: $("model").value.trim(),
+    max_review_rounds: parseInt($("rounds").value||"2",10),
+  };
+  $("runBtn").disabled = true; $("stopBtn").style.display="block";
+  $("console").innerHTML = "";
+  resetNodes();
+  ["outline","article","review","summary"].forEach(p=>{
+    $("p-"+p).innerHTML = '<span class="empty">执行中…</span>';
+  });
+  controller = new AbortController();
+  try{
+    const res = await fetch("/api/run", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(body), signal: controller.signal});
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buf += dec.decode(value, {stream:true});
+      let i;
+      while((i = buf.indexOf("\n\n")) >= 0){
+        const chunk = buf.slice(0,i); buf = buf.slice(i+2);
+        for(const line of chunk.split("\n")){
+          if(line.startsWith("data: ")){
+            try{ handle(JSON.parse(line.slice(6))); }catch(_){}
+          }
+        }
+      }
+    }
+  }catch(e){
+    if(e.name !== "AbortError") logLine("✗ 请求失败："+e.message, "err");
+    else logLine("■ 已停止", "dim");
+  }finally{
+    $("runBtn").disabled=false; $("stopBtn").style.display="none";
+    document.querySelectorAll(".node.active").forEach(n=>n.classList.remove("active"));
+  }
+}
+
+// ---------- 事件绑定 ----------
+$("runBtn").addEventListener("click", run);
+$("stopBtn").addEventListener("click", ()=>{ if(controller) controller.abort(); });
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click", ()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+  document.querySelectorAll(".pane").forEach(x=>x.classList.remove("on"));
+  t.classList.add("on"); $("p-"+t.dataset.pane).classList.add("on");
+}));
+init();
+</script>
+</body>
+</html>

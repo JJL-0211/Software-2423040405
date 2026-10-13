@@ -1,0 +1,13 @@
+# 内容创作 Workflow MVP - 配置文件
+llm:
+  api_key: "sk-ws-H.PPHPHHH.gSDg.MEUCIQD5h1q1CUCEOz89W_IztISXdpBpBRhpTD1zdlq89u_6FwIgd2gfAiIVwp_gdAQEEfydxpD7TCSCi-_17fWst3nEauo"   # 通义千问 DashScope Key;也可用环境变量 DASHSCOPE_API_KEY
+  base_url: ""          # 留空使用默认地址 https://dashscope.aliyuncs.com/compatible-mode/v1
+  model: ""             # 留空使用默认模型 qwen-plus(可选 qwen-turbo / qwen-max 等)
+  temperature: 0.7
+  max_tokens: 2000
+  timeout: 60
+
+workflow:
+  topic: "人工智能如何改变软件开发"
+  max_review_rounds: 2
+  log_enabled: true

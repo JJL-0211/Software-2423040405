@@ -1,0 +1,5 @@
+# Content Creation Workflow MVP - Dependencies
+openai>=1.0.0
+pyyaml>=6.0
+fastapi>=0.110
+uvicorn[standard]>=0.27
